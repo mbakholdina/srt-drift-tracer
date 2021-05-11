@@ -26,6 +26,7 @@ class drift_tracer:
         self.rtt_base = df['usRTT' + self.rtt_clock_suffix].iloc[0]
         self.tsbpd_wrap_check = False
 
+        print(f'Local Clock: {self.local_clock_suffix}, Remote Clock: {self.remote_clock_suffix}')
         print(f'TSBPD Time Base: {self.tsbpd_base}')
         print(f'RTT Base (RTT_0): {self.rtt_base}')
 
@@ -51,16 +52,25 @@ class drift_tracer:
         rtt_name = 'usRTT' + self.rtt_clock_suffix
 
         df_drift = df[[elapsed_name, timestamp_name, rtt_name, 'usDriftSampleStd']]
-        # Stopped here
-        df_drift = df_drift.rename(columns={elapsed_name : "usElapsed", timestamp_name : "usAckAckTimestamp", 'usDriftSampleStd' : 'usDriftSample'})
+        df_drift = df_drift.rename(columns={
+            elapsed_name : 'usElapsed',
+            timestamp_name : 'usAckAckTimestamp',
+            rtt_name: 'usRTT',
+            'usDriftSampleStd' : 'usDriftSampleLog'
+        })
         df_drift['sTime'] = df_drift['usElapsed'] / 1000000
 
-        for i, row in df_drift.iterrows():
-            rtt_correction = (row[rtt_name] - self.rtt_base) / 2;
-            #print(f'RTT correction: {rtt_correction}')
-            df_drift.at[i, 'usDriftSample'] = row['usElapsed'] - (self.get_time_base(row['usAckAckTimestamp']) + row['usAckAckTimestamp']) - rtt_correction
+        df_drift['usRTTCorrection'] = (df_drift['usRTT'] - self.rtt_base) / 2
 
-        df_drift['usDriftRMA'] = df_drift['usDriftSample'].ewm(com=7, adjust=False).mean()
+        for i, row in df_drift.iterrows():
+            df_drift.at[i, 'usDriftSample_v1_4_2'] = row['usElapsed'] \
+                                                    - (self.get_time_base(row['usAckAckTimestamp']) + row['usAckAckTimestamp'])
+
+        df_drift['usDriftSample_CorrectedOnRTT'] = df_drift['usDriftSample_v1_4_2'] - df_drift['usRTTCorrection']
+
+        # EWMA is applied here instead of SRT model for simplification
+        df_drift['usDriftEWMA_v1_4_2'] = df_drift['usDriftSample_v1_4_2'].ewm(com=7, adjust=False).mean()
+        df_drift['usDriftEWMA_CorrectedOnRTT'] = df_drift['usDriftSample_CorrectedOnRTT'].ewm(com=7, adjust=False).mean()
         return df_drift
 
 
@@ -94,31 +104,31 @@ def main(filepath, local_sys, remote_sys):
 
     df_driftlog['sTime'] = df_driftlog['usElapsedStd'] / 1000000
 
-    str_local_clock  = "SYS" if local_sys else "STD"
-    str_remote_clock = "SYS" if remote_sys else "STD"
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True)
-    fig.update_layout(title=f'Local {str_local_clock} Remote {str_remote_clock}')
-    fig.add_trace(go.Scatter(x=df_drift['sTime'], y=df_drift['usDriftSample'],
-                    mode='lines+markers',
-                    name='Drift Sample, us'),
-                    row=1, col=1)
+    # str_local_clock  = "SYS" if local_sys else "STD"
+    # str_remote_clock = "SYS" if remote_sys else "STD"
+    # fig = make_subplots(rows=2, cols=1, shared_xaxes=True)
+    # fig.update_layout(title=f'Local {str_local_clock} Remote {str_remote_clock}')
+    # fig.add_trace(go.Scatter(x=df_drift['sTime'], y=df_drift['usDriftSample'],
+    #                 mode='lines',
+    #                 name='Drift Sample, us'),
+    #                 row=1, col=1)
 
-    fig.add_trace(go.Scatter(x=df_drift['sTime'], y=df_drift['usDriftRMA'],
-                    mode='lines+markers',
-                    name='Drift RMA, us'),
-                    row=1, col=1)
+    # fig.add_trace(go.Scatter(x=df_drift['sTime'], y=df_drift['usDriftEWMA'],
+    #                 mode='lines',
+    #                 name='Drift RMA, us'),
+    #                 row=1, col=1)
 
-    fig.add_trace(go.Scatter(x=df_driftlog['sTime'], y=df_driftlog['usRTTStd'],
-                    mode='lines+markers',
-                    name='Instant RTT steady, us'),
-                    row=2, col=1)
+    # fig.add_trace(go.Scatter(x=df_driftlog['sTime'], y=df_driftlog['usRTTStd'],
+    #                 mode='lines',
+    #                 name='Instant RTT steady, us'),
+    #                 row=2, col=1)
 
-    fig.add_trace(go.Scatter(x=df_driftlog['sTime'], y=df_driftlog['usRTTStdRma'],
-                    mode='lines+markers',
-                    name='RTT RMA steady, us'),
-                    row=2, col=1)
+    # fig.add_trace(go.Scatter(x=df_driftlog['sTime'], y=df_driftlog['usRTTStdRma'],
+    #                 mode='lines',
+    #                 name='RTT RMA steady, us'),
+    #                 row=2, col=1)
 
-    fig.show()
+    # fig.show()
 
 
 if __name__ == '__main__':
