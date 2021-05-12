@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 
-from drift_model import drift_tracer
+from drift_model import drift_tracer, create_fig_drift
 
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
@@ -71,62 +71,7 @@ fig_drift_corrected_on_rtt.update_layout(
 )
 
 # 1 b
-
-# str_local_clock  = "SYS" if local_sys else "STD"
-# str_remote_clock = "SYS" if remote_sys else "STD"
-
-fig_drift = make_subplots(
-    rows=2,
-    cols=1,
-    shared_xaxes=True,
-    x_title='Time, seconds (s)',
-    y_title='Drift, milliseconds (ms)',
-    subplot_titles=('v1.4.2', 'Corrected on RTT')
-)
-
-# fig_drift.update_layout(title=f'Local {str_local_clock} Remote {str_remote_clock}')
-
-fig_drift.add_trace(
-    go.Scattergl(
-        name='Sample', mode='lines',
-        x=df_drift['sTime'], y=df_drift['usDriftSample_v1_4_2'] / 1000
-    ),
-    row=1, col=1
-)
-fig_drift.add_trace(
-    go.Scattergl(
-        name='EWMA', mode='lines',
-        x=df_drift['sTime'], y=df_drift['usDriftEWMA_v1_4_2'] / 1000
-    ),
-    row=1, col=1
-)
-fig_drift.add_trace(
-    go.Scattergl(
-        name='Sample', mode='lines',
-        x=df_drift['sTime'], y=df_drift['usDriftSample_CorrectedOnRTT'] / 1000
-    ),
-    row=2, col=1
-)
-fig_drift.add_trace(
-    go.Scattergl(
-        name='EWMA', mode='lines',
-        x=df_drift['sTime'], y=df_drift['usDriftEWMA_CorrectedOnRTT'] / 1000
-    ),
-    row=2, col=1
-)
-
-
-fig_drift.update_layout(
-    title='Drift Model',
-    # xaxis_title='Time, seconds (s)',
-    # yaxis_title='Drift, microseconds (us)',
-    legend_title="Drift",
-    # font=dict(
-    #     family="Courier New, monospace",
-    #     size=18,
-    #     color="RebeccaPurple"
-    # )
-)
+fig_drift = create_fig_drift(df_drift)
 
 # 2
 fig = go.Figure()

@@ -9,6 +9,7 @@ from plotly.subplots import make_subplots
 
 pio.templates.default = "plotly_white"
 
+
 MAX_TIMESTAMP = 0xFFFFFFFF # Full 32 bit (01h11m35s)
 TSBPD_WRAP_PERIOD = (30*1000000)
 
@@ -74,6 +75,66 @@ class drift_tracer:
         return df_drift
 
 
+def create_fig_drift(df: pd.DataFrame):
+    # df_drift
+
+    # str_local_clock  = "SYS" if local_sys else "STD"
+    # str_remote_clock = "SYS" if remote_sys else "STD"
+
+    fig = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        x_title='Time, seconds (s)',
+        y_title='Drift, milliseconds (ms)',
+        subplot_titles=('v1.4.2', 'Corrected on RTT')
+    )
+
+    # fig_drift.update_layout(title=f'Local {str_local_clock} Remote {str_remote_clock}')
+
+    fig.add_trace(
+        go.Scattergl(
+            name='Sample', mode='lines',
+            x=df['sTime'], y=df['usDriftSample_v1_4_2'] / 1000
+        ),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scattergl(
+            name='EWMA', mode='lines',
+            x=df['sTime'], y=df['usDriftEWMA_v1_4_2'] / 1000
+        ),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scattergl(
+            name='Sample', mode='lines',
+            x=df['sTime'], y=df['usDriftSample_CorrectedOnRTT'] / 1000
+        ),
+        row=2, col=1
+    )
+    fig.add_trace(
+        go.Scattergl(
+            name='EWMA', mode='lines',
+            x=df['sTime'], y=df['usDriftEWMA_CorrectedOnRTT'] / 1000
+        ),
+        row=2, col=1
+    )
+
+    fig.update_layout(
+        title='Drift Model',
+        # xaxis_title='Time, seconds (s)',
+        # yaxis_title='Drift, microseconds (us)',
+        legend_title="Drift",
+        # font=dict(
+        #     family="Courier New, monospace",
+        #     size=18,
+        #     color="RebeccaPurple"
+        # )
+    )
+
+    return fig
+
+
 @click.command()
 @click.argument(
     'filepath',
@@ -104,31 +165,8 @@ def main(filepath, local_sys, remote_sys):
 
     df_driftlog['sTime'] = df_driftlog['usElapsedStd'] / 1000000
 
-    # str_local_clock  = "SYS" if local_sys else "STD"
-    # str_remote_clock = "SYS" if remote_sys else "STD"
-    # fig = make_subplots(rows=2, cols=1, shared_xaxes=True)
-    # fig.update_layout(title=f'Local {str_local_clock} Remote {str_remote_clock}')
-    # fig.add_trace(go.Scatter(x=df_drift['sTime'], y=df_drift['usDriftSample'],
-    #                 mode='lines',
-    #                 name='Drift Sample, us'),
-    #                 row=1, col=1)
-
-    # fig.add_trace(go.Scatter(x=df_drift['sTime'], y=df_drift['usDriftEWMA'],
-    #                 mode='lines',
-    #                 name='Drift RMA, us'),
-    #                 row=1, col=1)
-
-    # fig.add_trace(go.Scatter(x=df_driftlog['sTime'], y=df_driftlog['usRTTStd'],
-    #                 mode='lines',
-    #                 name='Instant RTT steady, us'),
-    #                 row=2, col=1)
-
-    # fig.add_trace(go.Scatter(x=df_driftlog['sTime'], y=df_driftlog['usRTTStdRma'],
-    #                 mode='lines',
-    #                 name='RTT RMA steady, us'),
-    #                 row=2, col=1)
-
-    # fig.show()
+    fig = create_fig_drift(df_drift)
+    fig.show()
 
 
 if __name__ == '__main__':
