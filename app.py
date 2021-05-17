@@ -17,58 +17,59 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 # df = pd.read_csv('datasets/drift-trace-flip-2.csv')
-df = pd.read_csv('datasets/_data_germany_useast/drift-trace-useast.csv')
+df = pd.read_csv('datasets_17.05.2021/rendsburgEth_montreal_1h/drift-trace-montreal.csv')
 local_sys = False
 remote_sys = False
 
 df['sTime'] = df['usElapsedStd'] / 1000000
+print(df)
 
 tracer = drift_tracer(df, not local_sys, not remote_sys)
-df_drift = tracer.calculate_drift(df)
-print(df_drift)
+tracer.calculate_drift()
+df_drift = tracer.df
 
 # 1a
-fig_drift_v1_4_2 = go.Figure()
-fig_drift_v1_4_2.add_trace(go.Scattergl(
-    name='Sample',
-    mode='lines', x=df_drift['sTime'], y=df_drift['usDriftSample_v1_4_2']
-))
-fig_drift_v1_4_2.add_trace(go.Scattergl(
-    name='EWMA',
-    mode='lines', x=df_drift['sTime'], y=df_drift['usDriftEWMA_v1_4_2']
-))
-fig_drift_v1_4_2.update_layout(
-    title='Drift Model v1.4.2',
-    xaxis_title='Time, seconds (s)',
-    yaxis_title='Drift, microseconds (us)',
-    legend_title="Drift",
-    # font=dict(
-    #     family="Courier New, monospace",
-    #     size=18,
-    #     color="RebeccaPurple"
-    # )
-)
+# fig_drift_v1_4_2 = go.Figure()
+# fig_drift_v1_4_2.add_trace(go.Scattergl(
+#     name='Sample',
+#     mode='lines', x=df_drift['sTime'], y=df_drift['usDriftSample_v1_4_2']
+# ))
+# fig_drift_v1_4_2.add_trace(go.Scattergl(
+#     name='EWMA',
+#     mode='lines', x=df_drift['sTime'], y=df_drift['usDriftEWMA_v1_4_2']
+# ))
+# fig_drift_v1_4_2.update_layout(
+#     title='Drift Model v1.4.2',
+#     xaxis_title='Time, seconds (s)',
+#     yaxis_title='Drift, microseconds (us)',
+#     legend_title="Drift",
+#     # font=dict(
+#     #     family="Courier New, monospace",
+#     #     size=18,
+#     #     color="RebeccaPurple"
+#     # )
+# )
 
-fig_drift_corrected_on_rtt = go.Figure()
-fig_drift_corrected_on_rtt.add_trace(go.Scattergl(
-    name='Sample',
-    mode='lines', x=df_drift['sTime'], y=df_drift['usDriftSample_CorrectedOnRTT']
-))
-fig_drift_corrected_on_rtt.add_trace(go.Scattergl(
-    name='EWMA',
-    mode='lines', x=df_drift['sTime'], y=df_drift['usDriftEWMA_CorrectedOnRTT']
-))
-fig_drift_corrected_on_rtt.update_layout(
-    title='Drift Model with Correction on RTT',
-    xaxis_title='Time, seconds (s)',
-    yaxis_title='Drift, microseconds (us)',
-    legend_title="Drift",
-    # font=dict(
-    #     family="Courier New, monospace",
-    #     size=18,
-    #     color="RebeccaPurple"
-    # )
-)
+# fig_drift_corrected_on_rtt = go.Figure()
+# fig_drift_corrected_on_rtt.add_trace(go.Scattergl(
+#     name='Sample',
+#     mode='lines', x=df_drift['sTime'], y=df_drift['usDriftSample_CorrectedOnRTT']
+# ))
+# fig_drift_corrected_on_rtt.add_trace(go.Scattergl(
+#     name='EWMA',
+#     mode='lines', x=df_drift['sTime'], y=df_drift['usDriftEWMA_CorrectedOnRTT']
+# ))
+# fig_drift_corrected_on_rtt.update_layout(
+#     title='Drift Model with Correction on RTT',
+#     xaxis_title='Time, seconds (s)',
+#     yaxis_title='Drift, microseconds (us)',
+#     legend_title="Drift",
+#     # font=dict(
+#     #     family="Courier New, monospace",
+#     #     size=18,
+#     #     color="RebeccaPurple"
+#     # )
+# )
 
 # 1 b
 fig_drift = create_fig_drift(df_drift)
@@ -81,7 +82,7 @@ fig.add_trace(go.Scattergl(
 ))
 fig.add_trace(go.Scattergl(
     name='Smoothed',
-    mode='lines', x=df['sTime'], y=df['usRTTStdRma'] / 1000
+    mode='lines', x=df['sTime'], y=df['usSmoothedRTTStd'] / 1000
 ))
 fig.update_layout(
     title="Instant vs Smoothed RTT (Steady Clocks)",
