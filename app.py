@@ -29,7 +29,7 @@ app.layout = html.Div([
             html.A('Select Files')
         ]),
         style={
-            'width': '100%',
+            'width': '98%',
             'height': '60px',
             'lineHeight': '60px',
             'borderWidth': '1px',
@@ -40,6 +40,38 @@ app.layout = html.Div([
         },
         # Allow multiple files to be uploaded
         multiple=True
+    ),
+
+    html.Div([
+        "Local Clock Type",
+        dcc.RadioItems(
+            id='local-clock-type',
+            options=[{'label': i, 'value': i} for i in ['STD', 'SYS']],
+            value='STD',
+            labelStyle={'display': 'inline-block'}
+        )],
+        style={
+            'width': '98%',
+            'textAlign': 'left',
+            'display': 'inline-block',
+            'margin': '10px'
+        }
+    ),
+
+    html.Div([
+        "Remote Clock Type",
+        dcc.RadioItems(
+            id='remote-clock-type',
+            options=[{'label': i, 'value': i} for i in ['STD', 'SYS']],
+            value='STD',
+            labelStyle={'display': 'inline-block'}
+        )],
+        style={
+            'width': '98%',
+            'textAlign': 'left',
+            'display': 'inline-block',
+            'margin': '10px'
+        }
     ),
 
     html.Div(id='output-graphs'),
