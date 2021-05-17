@@ -18,6 +18,8 @@ MAX_DRIFT = 5000  # 5 ms
 class drift_tracer:
 
     def __init__(self, df, is_local_clock_std, is_remote_clock_std):
+        # df - driftlog
+
         self.local_clock_suffix  = 'Std' if is_local_clock_std else 'Sys'
         self.remote_clock_suffix = 'Std' if is_remote_clock_std else 'Sys'
         self.rtt_clock_suffix    = self.local_clock_suffix
@@ -120,7 +122,7 @@ class drift_tracer:
 
 
 def create_fig_drift(df: pd.DataFrame):
-    # df_drift
+    # df - df from drift_tracer class after calculate_drift()
 
     # str_local_clock  = "SYS" if local_sys else "STD"
     # str_remote_clock = "SYS" if remote_sys else "STD"
@@ -135,34 +137,22 @@ def create_fig_drift(df: pd.DataFrame):
 
     # fig_drift.update_layout(title=f'Local {str_local_clock} Remote {str_remote_clock}')
 
-    fig.add_trace(
-        go.Scattergl(
-            name='Sample', mode='lines',
-            x=df['sTime'], y=df['usDriftSample_v1_4_2'] / 1000
-        ),
-        row=1, col=1
-    )
-    fig.add_trace(
-        go.Scattergl(
-            name='EWMA', mode='lines',
-            x=df['sTime'], y=df['usDriftEWMA_v1_4_2'] / 1000
-        ),
-        row=1, col=1
-    )
-    fig.add_trace(
-        go.Scattergl(
-            name='Sample', mode='lines',
-            x=df['sTime'], y=df['usDriftSample_AdjustedForRTT'] / 1000
-        ),
-        row=2, col=1
-    )
-    fig.add_trace(
-        go.Scattergl(
-            name='EWMA', mode='lines',
-            x=df['sTime'], y=df['usDriftEWMA_AdjustedForRTT'] / 1000
-        ),
-        row=2, col=1
-    )
+    fig.add_trace(go.Scattergl(
+        name='Sample', mode='lines',
+        x=df['sTime'], y=df['usDriftSample_v1_4_2'] / 1000
+    ), row=1, col=1 )
+    fig.add_trace(go.Scattergl(
+        name='EWMA', mode='lines',
+        x=df['sTime'], y=df['usDriftEWMA_v1_4_2'] / 1000
+    ), row=1, col=1 )
+    fig.add_trace(go.Scattergl(
+        name='Sample', mode='lines',
+        x=df['sTime'], y=df['usDriftSample_AdjustedForRTT'] / 1000
+    ), row=2, col=1 )
+    fig.add_trace(go.Scattergl(
+        name='EWMA', mode='lines',
+        x=df['sTime'], y=df['usDriftEWMA_AdjustedForRTT'] / 1000
+    ), row=2, col=1 )
 
     fig.update_layout(
         title='Drift Model',
@@ -176,6 +166,35 @@ def create_fig_drift(df: pd.DataFrame):
         # )
     )
 
+    return fig
+
+
+def create_fig_rtt(df: pd.DataFrame):
+    # df - driftlog
+
+    df['sTimeStd'] = df['usElapsedStd'] / 1000000
+
+    fig = go.Figure()
+    fig.add_trace(go.Scattergl(
+        name='Instant',
+        mode='lines', x=df['sTimeStd'], y=df['usRTTStd'] / 1000
+    ))
+    fig.add_trace(go.Scattergl(
+        name='Smoothed',
+        mode='lines', x=df['sTimeStd'], y=df['usSmoothedRTTStd'] / 1000
+    ))
+    fig.update_layout(
+        title="Instant vs Smoothed RTT (Steady Clocks)",
+        xaxis_title="Time, seconds (s)",
+        yaxis_title="RTT, milliseconds (ms)",
+        # legend_title="RTT",
+        # font=dict(
+        #     family="Courier New, monospace",
+        #     size=18,
+        #     color="RebeccaPurple"
+        # )
+    )
+    
     return fig
 
 

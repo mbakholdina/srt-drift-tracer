@@ -1,124 +1,110 @@
 # Run this app with `python app.py` and
 # visit http://127.0.0.1:8050/ in your web browser.
 
+import base64
+import datetime
+import io
+
 import dash
 import dash_core_components as dcc
+from dash.dependencies import Input, Output, State
 import dash_html_components as html
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import pandas as pd
 
-from drift_model import drift_tracer, create_fig_drift
+from drift_model import create_fig_rtt, drift_tracer, create_fig_drift
 
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
-# df = pd.read_csv('datasets/drift-trace-flip-2.csv')
-df = pd.read_csv('datasets_17.05.2021/rendsburgEth_montreal_1h/drift-trace-montreal.csv')
-local_sys = False
-remote_sys = False
-
-df['sTime'] = df['usElapsedStd'] / 1000000
-print(df)
-
-tracer = drift_tracer(df, not local_sys, not remote_sys)
-tracer.calculate_drift()
-df_drift = tracer.df
-
-# 1a
-# fig_drift_v1_4_2 = go.Figure()
-# fig_drift_v1_4_2.add_trace(go.Scattergl(
-#     name='Sample',
-#     mode='lines', x=df_drift['sTime'], y=df_drift['usDriftSample_v1_4_2']
-# ))
-# fig_drift_v1_4_2.add_trace(go.Scattergl(
-#     name='EWMA',
-#     mode='lines', x=df_drift['sTime'], y=df_drift['usDriftEWMA_v1_4_2']
-# ))
-# fig_drift_v1_4_2.update_layout(
-#     title='Drift Model v1.4.2',
-#     xaxis_title='Time, seconds (s)',
-#     yaxis_title='Drift, microseconds (us)',
-#     legend_title="Drift",
-#     # font=dict(
-#     #     family="Courier New, monospace",
-#     #     size=18,
-#     #     color="RebeccaPurple"
-#     # )
-# )
-
-# fig_drift_corrected_on_rtt = go.Figure()
-# fig_drift_corrected_on_rtt.add_trace(go.Scattergl(
-#     name='Sample',
-#     mode='lines', x=df_drift['sTime'], y=df_drift['usDriftSample_CorrectedOnRTT']
-# ))
-# fig_drift_corrected_on_rtt.add_trace(go.Scattergl(
-#     name='EWMA',
-#     mode='lines', x=df_drift['sTime'], y=df_drift['usDriftEWMA_CorrectedOnRTT']
-# ))
-# fig_drift_corrected_on_rtt.update_layout(
-#     title='Drift Model with Correction on RTT',
-#     xaxis_title='Time, seconds (s)',
-#     yaxis_title='Drift, microseconds (us)',
-#     legend_title="Drift",
-#     # font=dict(
-#     #     family="Courier New, monospace",
-#     #     size=18,
-#     #     color="RebeccaPurple"
-#     # )
-# )
-
-# 1 b
-fig_drift = create_fig_drift(df_drift)
-
-# 2
-fig = go.Figure()
-fig.add_trace(go.Scattergl(
-    name='Instant',
-    mode='lines', x=df['sTime'], y=df['usRTTStd'] / 1000
-))
-fig.add_trace(go.Scattergl(
-    name='Smoothed',
-    mode='lines', x=df['sTime'], y=df['usSmoothedRTTStd'] / 1000
-))
-fig.update_layout(
-    title="Instant vs Smoothed RTT (Steady Clocks)",
-    xaxis_title="Time, seconds (s)",
-    yaxis_title="RTT, milliseconds (ms)",
-    # legend_title="RTT",
-    # font=dict(
-    #     family="Courier New, monospace",
-    #     size=18,
-    #     color="RebeccaPurple"
-    # )
-)
 
 app.layout = html.Div([
     html.H1('Drift Tracer'),
 
-    # dcc.Graph(
-    #     id='graph-drift-v1-4-2',
-    #     figure=fig_drift_v1_4_2
-    # ),
-
-    # dcc.Graph(
-    #     id='graph-drift-corrected-on-rtt',
-    #     figure=fig_drift_corrected_on_rtt
-    # ),
-
-    dcc.Graph(
-        id='graph-drift',
-        figure=fig_drift
+    dcc.Upload(
+        id='upload-data',
+        children=html.Div([
+            'Drag and Drop or ',
+            html.A('Select Files')
+        ]),
+        style={
+            'width': '100%',
+            'height': '60px',
+            'lineHeight': '60px',
+            'borderWidth': '1px',
+            'borderStyle': 'dashed',
+            'borderRadius': '5px',
+            'textAlign': 'center',
+            'margin': '10px'
+        },
+        # Allow multiple files to be uploaded
+        multiple=True
     ),
 
-    dcc.Graph(
-        id='graph-rtt',
-        figure=fig
-    )
+    html.Div(id='output-graphs'),
 ])
+
+
+def parse_contents(contents, filename, date):
+    # Decode contents
+    content_type, content_string = contents.split(',')
+    decoded = base64.b64decode(content_string)
+    try:
+        if 'csv' in filename:
+            # Assume that the user uploaded a CSV file
+            df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+        # elif 'xls' in filename:
+        #     # Assume that the user uploaded an excel file
+        #     df = pd.read_excel(io.BytesIO(decoded))
+    except Exception as e:
+        print(e)
+        return html.Div([
+            'There was an error while processing this file.'
+        ])
+
+    # Build figures
+    local_sys = False
+    remote_sys = False
+
+    tracer = drift_tracer(df, not local_sys, not remote_sys)
+    tracer.calculate_drift()
+    fig_drift = create_fig_drift(tracer.df)
+
+    fig_rtt = create_fig_rtt(df)
+
+    return html.Div([
+        html.H5(filename),
+        html.H6(datetime.datetime.fromtimestamp(date)),
+
+        dcc.Graph(
+            id='graph-drift',
+            figure=fig_drift
+        ),
+
+        dcc.Graph(
+            id='graph-rtt',
+            figure=fig_rtt
+        ),
+
+        html.Hr(),  # horizontal line
+    ])
+
+
+@app.callback(
+    Output('output-graphs', 'children'),
+    Input('upload-data', 'contents'),
+    State('upload-data', 'filename'),
+    State('upload-data', 'last_modified')
+)
+def update_output_graphs(list_of_contents, list_of_names, list_of_dates):
+    if list_of_contents is not None:
+        children = [
+            parse_contents(c, n, d) for c, n, d in
+            zip(list_of_contents, list_of_names, list_of_dates)
+        ]
+        return children
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)
