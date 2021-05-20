@@ -34,17 +34,32 @@ class drift_tracer:
         # based RTT is not yet implemented.
         self.rtt_base = df['usRTT' + self.rtt_clock_suffix].iloc[0]
 
+        # overdrift_name = 'usOverdrift' + self.local_clock_suffix
+        # tsbpd_time_base_name = 'TsbpdTimeBase' + self.local_clock_suffix
         elapsed_name = 'usElapsed' + self.local_clock_suffix
         timestamp_name = 'usAckAckTimestamp' + self.remote_clock_suffix
         rtt_name = 'usRTT' + self.rtt_clock_suffix
 
-        self.df = df[[elapsed_name, timestamp_name, rtt_name]]
+        self.df = df[[
+            # 'TimepointSys',
+            # overdrift_name,
+            # tsbpd_time_base_name,
+            elapsed_name,
+            timestamp_name,
+            rtt_name,
+        ]]
+
+        # self.df['TimepointSys'] = pd.to_datetime(self.df['TimepointSys'])
+        # self.df[tsbpd_time_base_name] = pd.to_timedelta(self.df[tsbpd_time_base_name])
+
         self.df = self.df.rename(columns={
+            # overdrift_name: 'usOverdriftLog',
+            # tsbpd_time_base_name: 'TsbpdTimeBaseLog',
             elapsed_name : 'usElapsed',
             timestamp_name : 'usAckAckTimestamp',
             rtt_name: 'usRTT',
         })
-        self.df['sTime'] = self.df['usElapsed'] / 1000000
+        self.df['sElapsed'] = self.df['usElapsed'] / 1000000
 
         print(f'Local Clock: {self.local_clock_suffix}, Remote Clock: {self.remote_clock_suffix}')
         print(f'TSBPD Time Base: {self.tsbpd_time_base}')
@@ -68,6 +83,27 @@ class drift_tracer:
 
 
     def calculate_drift(self):
+
+        # # self.df['TsbpdTimeBaseLog'] = self.df['TsbpdTimeBaseLog'].diff().fillna(pd.to_timedelta(0))
+        # self.df['TsbpdTimeBaseLog'] = self.df['TsbpdTimeBaseLog'] - self.df['TsbpdTimeBaseLog'].iloc[0]
+
+        # print(self.df)
+
+        # # print(self.df.iloc[12998:13005, :])
+        # print(self.df.iloc[24998:25005, :])
+
+        # # self.df['usOverdriftLog'] = pd.to_timedelta(self.df['usOverdriftLog'], unit='us')
+        # self.df['usOverdriftLog'] = pd.to_timedelta(self.df['usOverdriftLog'].cumsum(), unit='us')
+
+        # # print(self.df.iloc[12998:13005, :])
+        # print(self.df.iloc[24998:25005, :])
+
+        # self.df['TsbpdTimeBaseLog'] = self.df['TsbpdTimeBaseLog'] - self.df['usOverdriftLog']
+
+        # # print(self.df.iloc[12998:13005, :])
+        # print(self.df.iloc[24998:25005, :])
+
+        # # self.df['TsbpdTimeBase_2'] = 
 
         for i, row in self.df.iterrows():
             self.df.at[i, 'TsbpdTimeBase'] = self.get_time_base(row['usAckAckTimestamp'])
@@ -221,15 +257,19 @@ def main(filepath, local_sys, remote_sys):
     
     df_driftlog  = pd.read_csv(filepath)
     print(df_driftlog)
+    print(df_driftlog.info())
 
     tracer = drift_tracer(df_driftlog, not local_sys, not remote_sys)
-    tracer.calculate_drift()
     print(tracer.df)
+    print(tracer.df.info())
+
+    tracer.calculate_drift()
 
     df_driftlog['sTime'] = df_driftlog['usElapsedStd'] / 1000000
 
     fig = create_fig_drift(tracer.df)
     fig.show()
+
 
 
 if __name__ == '__main__':
