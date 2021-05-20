@@ -1,6 +1,7 @@
+from enum import Enum, auto
+
 import click
 import pandas as pd
-import pathlib
 import plotly.express as px
 import plotly.graph_objects as go
 import plotly.io as pio
@@ -15,28 +16,30 @@ TSBPD_WRAP_PERIOD = (30*1000000)  # 30 s
 MAX_DRIFT = 5000  # 5 ms
 
 
-class drift_tracer:
+# Clock type
+class Clock(Enum):
+    STD = 'Std'  # Steady (monotonic) clock
+    SYS = 'Sys'  # System clock
 
-    def __init__(self, df, is_local_clock_std, is_remote_clock_std):
+
+class DriftTracer:
+
+    def __init__(self, df, local_clock, remote_clock):
         # df - driftlog
-
-        self.local_clock_suffix  = 'Std' if is_local_clock_std else 'Sys'
-        self.remote_clock_suffix = 'Std' if is_remote_clock_std else 'Sys'
-        self.rtt_clock_suffix    = self.local_clock_suffix
 
         # TSBPD Time Base is calculated based on the very first ACK/ACKACK pair.
         # In SRT it's done based on the conclusion handshakes.
-        self.tsbpd_time_base = df['usElapsed' + self.local_clock_suffix].iloc[0] \
-                               - df['usAckAckTimestamp' + self.remote_clock_suffix].iloc[0]
+        self.tsbpd_time_base = df['usElapsed' + local_clock.value].iloc[0] \
+                               - df['usAckAckTimestamp' + remote_clock.value].iloc[0]
         self.tsbpd_wrap_check = False
         # RTT Base (or RTT0) is taken as the very first RTT sample obtained
         # from the ACK/ACKACK pair. The same is done in SRT because handshake
         # based RTT is not yet implemented.
-        self.rtt_base = df['usRTT' + self.rtt_clock_suffix].iloc[0]
+        self.rtt_base = df['usRTT' + local_clock.value].iloc[0]
 
-        elapsed_name = 'usElapsed' + self.local_clock_suffix
-        timestamp_name = 'usAckAckTimestamp' + self.remote_clock_suffix
-        rtt_name = 'usRTT' + self.rtt_clock_suffix
+        elapsed_name = 'usElapsed' + local_clock.value
+        timestamp_name = 'usAckAckTimestamp' + remote_clock.value
+        rtt_name = 'usRTT' + local_clock.value
 
         self.df = df[[elapsed_name, timestamp_name, rtt_name]]
         self.df = self.df.rename(columns={
@@ -44,9 +47,9 @@ class drift_tracer:
             timestamp_name : 'usAckAckTimestamp',
             rtt_name: 'usRTT',
         })
-        self.df['sTime'] = self.df['usElapsed'] / 1000000
+        self.df['sElapsed'] = self.df['usElapsed'] / 1000000
 
-        print(f'Local Clock: {self.local_clock_suffix}, Remote Clock: {self.remote_clock_suffix}')
+        print(f'Local Clock: {local_clock.value}, Remote Clock: {remote_clock.value}')
         print(f'TSBPD Time Base: {self.tsbpd_time_base}')
         print(f'RTT Base (RTT0): {self.rtt_base}')
         print(f'Dataframe: \n {self.df}')
@@ -124,9 +127,6 @@ class drift_tracer:
 def create_fig_drift(df: pd.DataFrame):
     # df - df from drift_tracer class after calculate_drift()
 
-    # str_local_clock  = "SYS" if local_sys else "STD"
-    # str_remote_clock = "SYS" if remote_sys else "STD"
-
     fig = make_subplots(
         rows=2, cols=1,
         shared_xaxes=True,
@@ -135,29 +135,25 @@ def create_fig_drift(df: pd.DataFrame):
         subplot_titles=('v1.4.2', 'Corrected on RTT')
     )
 
-    # fig_drift.update_layout(title=f'Local {str_local_clock} Remote {str_remote_clock}')
-
     fig.add_trace(go.Scattergl(
         name='Sample', mode='lines',
-        x=df['sTime'], y=df['usDriftSample_v1_4_2'] / 1000
+        x=df['sElapsed'], y=df['usDriftSample_v1_4_2'] / 1000
     ), row=1, col=1 )
     fig.add_trace(go.Scattergl(
         name='EWMA', mode='lines',
-        x=df['sTime'], y=df['usDriftEWMA_v1_4_2'] / 1000
+        x=df['sElapsed'], y=df['usDriftEWMA_v1_4_2'] / 1000
     ), row=1, col=1 )
     fig.add_trace(go.Scattergl(
         name='Sample', mode='lines',
-        x=df['sTime'], y=df['usDriftSample_AdjustedForRTT'] / 1000
+        x=df['sElapsed'], y=df['usDriftSample_AdjustedForRTT'] / 1000
     ), row=2, col=1 )
     fig.add_trace(go.Scattergl(
         name='EWMA', mode='lines',
-        x=df['sTime'], y=df['usDriftEWMA_AdjustedForRTT'] / 1000
+        x=df['sElapsed'], y=df['usDriftEWMA_AdjustedForRTT'] / 1000
     ), row=2, col=1 )
 
     fig.update_layout(
         title='Drift Model',
-        # xaxis_title='Time, seconds (s)',
-        # yaxis_title='Drift, microseconds (us)',
         legend_title="Drift",
         # font=dict(
         #     family="Courier New, monospace",
@@ -218,18 +214,21 @@ def create_fig_rtt(df: pd.DataFrame):
     show_default=True
 )
 def main(filepath, local_sys, remote_sys):
-    
+    local_clock = Clock.SYS if local_sys else Clock.STD
+    remote_clock = Clock.SYS if remote_sys else Clock.STD
+
     df_driftlog  = pd.read_csv(filepath)
     print(df_driftlog)
 
-    tracer = drift_tracer(df_driftlog, not local_sys, not remote_sys)
+    tracer = DriftTracer(df_driftlog, local_clock, remote_clock)
     tracer.calculate_drift()
     print(tracer.df)
 
-    df_driftlog['sTime'] = df_driftlog['usElapsedStd'] / 1000000
-
     fig = create_fig_drift(tracer.df)
     fig.show()
+
+    fig_2 = create_fig_rtt(df_driftlog)
+    fig_2.show()
 
 
 if __name__ == '__main__':

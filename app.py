@@ -11,7 +11,7 @@ from dash.dependencies import Input, Output, State
 import dash_html_components as html
 import pandas as pd
 
-from drift_model import create_fig_rtt, drift_tracer, create_fig_drift
+from drift_model import Clock, create_fig_drift, create_fig_rtt, DriftTracer
 
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
@@ -38,16 +38,15 @@ app.layout = html.Div([
             'textAlign': 'center',
             'margin': '10px'
         },
-        # Allow multiple files to be uploaded
-        multiple=True
+        multiple=True  # Allow multiple files to be uploaded
     ),
 
     html.Div([
         "Local Clock Type",
         dcc.RadioItems(
-            id='local-clock-type',
-            options=[{'label': i, 'value': i} for i in ['STD', 'SYS']],
-            value='STD',
+            id='local-clock',
+            options=[{'label': i, 'value': i} for i in [member.value for member in list(Clock)]],
+            value=Clock.STD.value,
             labelStyle={'display': 'inline-block'}
         )],
         style={
@@ -61,9 +60,9 @@ app.layout = html.Div([
     html.Div([
         "Remote Clock Type",
         dcc.RadioItems(
-            id='remote-clock-type',
-            options=[{'label': i, 'value': i} for i in ['STD', 'SYS']],
-            value='STD',
+            id='remote-clock',
+            options=[{'label': i, 'value': i} for i in [member.value for member in list(Clock)]],
+            value=Clock.STD.value,
             labelStyle={'display': 'inline-block'}
         )],
         style={
@@ -78,7 +77,7 @@ app.layout = html.Div([
 ])
 
 
-def parse_contents(contents, filename, date):
+def parse_contents(contents, filename, date, local_clock, remote_clock):
     # Decode contents
     content_type, content_string = contents.split(',')
     decoded = base64.b64decode(content_string)
@@ -96,13 +95,9 @@ def parse_contents(contents, filename, date):
         ])
 
     # Build figures
-    local_sys = False
-    remote_sys = False
-
-    tracer = drift_tracer(df, not local_sys, not remote_sys)
+    tracer = DriftTracer(df, local_clock, remote_clock)
     tracer.calculate_drift()
     fig_drift = create_fig_drift(tracer.df)
-
     fig_rtt = create_fig_rtt(df)
 
     return html.Div([
@@ -126,14 +121,19 @@ def parse_contents(contents, filename, date):
 @app.callback(
     Output('output-graphs', 'children'),
     Input('upload-data', 'contents'),
+    Input('local-clock', 'value'),
+    Input('remote-clock', 'value'),
     State('upload-data', 'filename'),
     State('upload-data', 'last_modified')
 )
-def update_output_graphs(list_of_contents, list_of_names, list_of_dates):
-    if list_of_contents is not None:
+def update_graphs(contents, local_clock, remote_clock, names, dates):
+    local_clock = Clock.STD if local_clock == Clock.STD.value else Clock.SYS
+    remote_clock = Clock.STD if remote_clock == Clock.STD.value else Clock.SYS
+
+    if contents is not None:
         children = [
-            parse_contents(c, n, d) for c, n, d in
-            zip(list_of_contents, list_of_names, list_of_dates)
+            parse_contents(c, n, d, local_clock, remote_clock) for c, n, d in
+            zip(contents, names, dates)
         ]
         return children
 
