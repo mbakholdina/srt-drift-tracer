@@ -71,7 +71,8 @@ class DriftTracer:
 
 
     def calculate_drift(self):
-
+        # Obtain drift samples
+        # Speed this up
         for i, row in self.df.iterrows():
             self.df.at[i, 'TsbpdTimeBase'] = self.get_time_base(row['usAckAckTimestamp'])
 
@@ -89,39 +90,46 @@ class DriftTracer:
     def replicate_srt_model(self):
         # Replicate SRT model
 
-        # df_drift = pd.DataFrame(columns = ['sTime', 'usTsbpdTimeBase', 'usDrift', 'usOverdrift'])
+        # df_drift = self.df['sElapsed', 'TsbpdTimeBase', 'usDriftSample_AdjustedForRTT']
 
-        # print(self.df.shape)
+        df_drift = pd.DataFrame(columns = ['sElapsed', 'usDrift'])
+        print(self.df.shape)
 
-        # n = int(self.df.shape[0] / 1000)
-        # print(n)
+        n = int(self.df.shape[0] / 1000)
+        print(f'n: {n}')
 
         # drift = 0
         # overdrift = 0
 
-        # previous_drift = 0
+        previous_drift = 0
         # previous_overdrift = 0
 
-        # for i in range(0, n):
-        #     slice = self.df.iloc[1000 * i:1000 * (i + 1),:]
+        for i in range(0, n):
+            slice = self.df.iloc[1000 * i:1000 * (i + 1),:]
+            drift = slice['usDriftSample_AdjustedForRTT'].mean()
 
-        #     if (i < 5 | i > 315):
-        #         print(slice)
+            if (i < 5):
+                print(slice[['sElapsed','usDriftSample_AdjustedForRTT']])
+                print(f'drift: {drift}')
+                print(slice['sElapsed'].iloc[0])
+                print(slice['sElapsed'].iloc[-1])
 
-        #     drift = slice['usDriftSample_AdjustedForRTT'].mean()
-        #     if (abs(drift) > MAX_DRIFT):
-        #         overdrift = - MAX_DRIFT if drift < 0 else MAX_DRIFT
-        #         drift = drift - overdrift
-        #         # tsbpd
+            # if (abs(drift) > MAX_DRIFT):
+            #     overdrift = - MAX_DRIFT if drift < 0 else MAX_DRIFT
+            #     drift = drift - overdrift
+            #     # tsbpd
 
-        #     # ??? get_time_base
-        #     drift.append([slice['sTime'].iloc[0], self.tsbpd_time_base, previous_drift, previous_overdrift])
-        #     drift.append([slice['sTime'].iloc[-1], self.tsbpd_time_base, previous_drift, previous_overdrift])
+            # ??? get_time_base
+            df_drift = df_drift.append({'sElapsed': slice['sElapsed'].iloc[0], 'usDrift': previous_drift}, ignore_index=True)
+            df_drift = df_drift.append({'sElapsed': slice['sElapsed'].iloc[-1], 'usDrift': previous_drift}, ignore_index=True)
 
-        #     previous_drift = drift
-        #     previous_overdrift = overdrift
-        #     # tsbpd
-        pass
+            previous_drift = drift
+            # previous_overdrift = overdrift
+            # tsbpd
+
+        print(f'last i = {i}')
+
+        return df_drift
 
 
 def create_fig_drift(df: pd.DataFrame):
@@ -223,6 +231,9 @@ def main(filepath, local_sys, remote_sys):
     tracer = DriftTracer(df_driftlog, local_clock, remote_clock)
     tracer.calculate_drift()
     print(tracer.df)
+
+    df_drift = tracer.replicate_srt_model()
+    print(df_drift)
 
     fig = create_fig_drift(tracer.df)
     fig.show()
