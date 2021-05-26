@@ -70,14 +70,14 @@ class DriftTracer:
         return (self.tsbpd_time_base + carryover)
 
 
-    def calculate_drift(self):
+    def obtain_drift_samples(self):
         # Obtain drift samples
-        # Speed this up
+        # TODO: Speed this up
         for i, row in self.df.iterrows():
-            self.df.at[i, 'TsbpdTimeBase'] = self.get_time_base(row['usAckAckTimestamp'])
+            self.df.at[i, 'usTsbpdTimeBase'] = self.get_time_base(row['usAckAckTimestamp'])
 
         self.df['usDriftSample_v1_4_2'] = self.df['usElapsed'] \
-                                          - (self.df['TsbpdTimeBase'] + self.df['usAckAckTimestamp'])
+                                          - (self.df['usTsbpdTimeBase'] + self.df['usAckAckTimestamp'])
 
         self.df['usDriftSample_AdjustedForRTT'] = self.df['usDriftSample_v1_4_2'] \
                                                   - (self.df['usRTT'] - self.rtt_base) / 2
@@ -90,50 +90,44 @@ class DriftTracer:
     def replicate_srt_model(self):
         # Replicate SRT model
 
-        # df_drift = self.df['sElapsed', 'TsbpdTimeBase', 'usDriftSample_AdjustedForRTT']
-
-        df_drift = pd.DataFrame(columns = ['sElapsed', 'usDrift'])
-        print(self.df.shape)
-
+        df = pd.DataFrame(columns = ['sElapsed', 'usDrift'])
         n = int(self.df.shape[0] / 1000)
-        print(f'n: {n}')
 
-        # drift = 0
-        # overdrift = 0
+        # print(self.df.shape)
+        # print(f'n: {n}')
 
         previous_drift = 0
         # previous_overdrift = 0
 
-        for i in range(0, n):
-            slice = self.df.iloc[1000 * i:1000 * (i + 1),:]
+        for i in range(0, (n + 1)):
+            slice = self.df.iloc[1000 * i:1000 * (i + 1), :]
             drift = slice['usDriftSample_AdjustedForRTT'].mean()
 
-            if (i < 5):
-                print(slice[['sElapsed','usDriftSample_AdjustedForRTT']])
-                print(f'drift: {drift}')
-                print(slice['sElapsed'].iloc[0])
-                print(slice['sElapsed'].iloc[-1])
+            # if (i > 318):
+            #     print(slice[['sElapsed','usDriftSample_AdjustedForRTT']])
+            #     print(f'drift: {drift}')
+            #     print(slice['sElapsed'].iloc[0])
+            #     print(slice['sElapsed'].iloc[-1])
 
             # if (abs(drift) > MAX_DRIFT):
             #     overdrift = - MAX_DRIFT if drift < 0 else MAX_DRIFT
             #     drift = drift - overdrift
             #     # tsbpd
 
-            # ??? get_time_base
-            df_drift = df_drift.append({'sElapsed': slice['sElapsed'].iloc[0], 'usDrift': previous_drift}, ignore_index=True)
-            df_drift = df_drift.append({'sElapsed': slice['sElapsed'].iloc[-1], 'usDrift': previous_drift}, ignore_index=True)
+            df = df.append({'sElapsed': slice['sElapsed'].iloc[0], 'usDrift': previous_drift}, ignore_index=True)
+            df = df.append({'sElapsed': slice['sElapsed'].iloc[-1], 'usDrift': previous_drift}, ignore_index=True)
 
             previous_drift = drift
             # previous_overdrift = overdrift
             # tsbpd
 
-        print(f'last i = {i}')
+        # print(f'last i = {i}')
 
-        return df_drift
+        return df
 
 
-def create_fig_drift(df: pd.DataFrame):
-    # df - df from drift_tracer class after calculate_drift()
+def create_fig_drift_samples(df: pd.DataFrame):
+    # df - df from drift_tracer class after obtain_drift_samples()
 
     fig = make_subplots(
         rows=2, cols=1,
@@ -161,7 +155,7 @@ def create_fig_drift(df: pd.DataFrame):
     ), row=2, col=1 )
 
     fig.update_layout(
-        title='Drift Model',
+        title='Drift Samples',
         legend_title="Drift",
         # font=dict(
         #     family="Courier New, monospace",
@@ -202,6 +196,34 @@ def create_fig_rtt(df: pd.DataFrame):
     return fig
 
 
+def create_fig_srt_model(df_drift_samples: pd.DataFrame, df_srt_model: pd.DataFrame):
+    # df_drift_samples - df from drift_tracer class after obtain_drift_samples()
+    # df_srt_model - df from drift_tracer class after replicate_srt_model()
+
+    fig = go.Figure()
+    fig.add_trace(go.Scattergl(
+        name='Drift Samples',
+        mode='lines', x=df_drift_samples['sElapsed'], y=df_drift_samples['usDriftSample_AdjustedForRTT'] / 1000
+    ))
+    fig.add_trace(go.Scattergl(
+        name='Drift (SRT Model)',
+        mode='lines', x=df_srt_model['sElapsed'], y=df_srt_model['usDrift'] / 1000
+    ))
+    fig.update_layout(
+        title="Drift Samples (Adjusted on RTT) vs Drift (SRT Model)",
+        xaxis_title="Time, seconds (s)",
+        yaxis_title="Drift, milliseconds (ms)",
+        # legend_title="RTT",
+        # font=dict(
+        #     family="Courier New, monospace",
+        #     size=18,
+        #     color="RebeccaPurple"
+        # )
+    )
+    
+    return fig
+
+
 @click.command()
 @click.argument(
     'filepath',
@@ -226,20 +248,26 @@ def main(filepath, local_sys, remote_sys):
     remote_clock = Clock.SYS if remote_sys else Clock.STD
 
     df_driftlog  = pd.read_csv(filepath)
+    print('Data from Log')
     print(df_driftlog)
 
     tracer = DriftTracer(df_driftlog, local_clock, remote_clock)
-    tracer.calculate_drift()
+    tracer.obtain_drift_samples()
+    print('Drift Samples')
     print(tracer.df)
 
-    df_drift = tracer.replicate_srt_model()
-    print(df_drift)
+    df_srt_model = tracer.replicate_srt_model()
+    print('SRT Model')
+    print(df_srt_model)
 
-    fig = create_fig_drift(tracer.df)
+    fig = create_fig_drift_samples(tracer.df)
     fig.show()
 
     fig_2 = create_fig_rtt(df_driftlog)
     fig_2.show()
+
+    fig_3 = create_fig_srt_model(tracer.df, df_srt_model)
+    fig_3.show()
 
 
 if __name__ == '__main__':
