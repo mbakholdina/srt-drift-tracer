@@ -42,6 +42,10 @@ class DriftTracer:
         rtt_name = 'usRTT' + local_clock.value
 
         self.df = df[[elapsed_name, timestamp_name, rtt_name]]
+
+        print('Check')
+        print(self.df)
+
         self.df = self.df.rename(columns={
             elapsed_name : 'usElapsed',
             timestamp_name : 'usAckAckTimestamp',
@@ -134,7 +138,7 @@ def create_fig_drift_samples(df: pd.DataFrame):
         shared_xaxes=True,
         x_title='Time, seconds (s)',
         y_title='Drift, milliseconds (ms)',
-        subplot_titles=('v1.4.2', 'Corrected on RTT')
+        subplot_titles=('v1.4.2', 'Adjusted on RTT')
     )
 
     fig.add_trace(go.Scattergl(

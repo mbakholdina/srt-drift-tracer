@@ -11,7 +11,7 @@ from dash.dependencies import Input, Output, State
 import dash_html_components as html
 import pandas as pd
 
-from drift_model import Clock, create_fig_drift, create_fig_rtt, DriftTracer
+from drift_model import Clock, create_fig_drift_samples, create_fig_rtt, create_fig_srt_model, DriftTracer
 
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
@@ -96,22 +96,30 @@ def parse_contents(contents, filename, date, local_clock, remote_clock):
 
     # Build figures
     tracer = DriftTracer(df, local_clock, remote_clock)
-    tracer.calculate_drift()
-    fig_drift = create_fig_drift(tracer.df)
+    tracer.obtain_drift_samples()
+    df_srt_model = tracer.replicate_srt_model()
+
+    fig_drift_samples = create_fig_drift_samples(tracer.df)
     fig_rtt = create_fig_rtt(df)
+    fig_srt_model = create_fig_srt_model(tracer.df, df_srt_model)
 
     return html.Div([
         html.H5(filename),
         html.H6(datetime.datetime.fromtimestamp(date)),
 
         dcc.Graph(
-            id='graph-drift',
-            figure=fig_drift
+            id='graph-drift-samples',
+            figure=fig_drift_samples
         ),
 
         dcc.Graph(
             id='graph-rtt',
             figure=fig_rtt
+        ),
+
+        dcc.Graph(
+            id='graph-srt-model',
+            figure=fig_srt_model
         ),
 
         html.Hr(),  # horizontal line
