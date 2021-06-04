@@ -2,6 +2,7 @@ from enum import Enum, auto
 
 import click
 import pandas as pd
+from pandas.tseries.offsets import SemiMonthBegin
 import plotly.express as px
 import plotly.graph_objects as go
 import plotly.io as pio
@@ -228,6 +229,69 @@ def create_fig_srt_model(df_drift_samples: pd.DataFrame, df_srt_model: pd.DataFr
     return fig
 
 
+def print_drift_samples_statistics(df: pd.DataFrame, colname: str):
+    # df - drift_samples
+
+    total_drift = (df[colname].iloc[-1] - df[colname].iloc[0]) / 1000
+    time_elapsed = df['sElapsed'].iloc[-1] - df['sElapsed'].iloc[0]
+    drift_rate = round(total_drift / time_elapsed, 3)
+    total_drift = round(total_drift, 2)
+    time_elapsed = round(time_elapsed, 2)
+
+    mean = round(df[colname].mean() / 1000, 2)
+    std = round(df[colname].std() / 1000, 2)
+    min = round(df[colname].min() / 1000, 2)
+    max = round(df[colname].max() / 1000, 2)
+
+    if (colname == 'usDriftSample_AdjustedForRTT'):
+        print('Drift samples adjusted on RTT')
+
+    if (colname == 'usDriftSample_v1_4_2'):
+        print('Drift samples v1.4.2')
+
+    print(f"Offset mean, ms:            {mean}")
+    print(f"Offset std, ms:             {std}")
+    print(f"Offset min, ms:             {min}")
+    print(f"Offset max, ms:             {max}")
+    print(f'Total Drift, ms:            {total_drift}')
+    print(f'Average Drift Rate, ms/s:   {drift_rate}')
+    print("")
+
+    print(mean)
+    print(std)
+    print(min)
+    print(max)
+    print(total_drift)
+    print(drift_rate)
+    print("")
+
+
+def print_rtt_statistics(df: pd.DataFrame):
+    # df - driftlog
+    df['Instant RTT, ms'] = df['usRTTStd'] / 1000
+    df['Smoothed RTT, ms'] = df['usSmoothedRTTStd'] / 1000
+
+    print(df[['Instant RTT, ms', 'Smoothed RTT, ms']].describe())
+    print("")
+
+    instant = df['Instant RTT, ms']
+    smoothed = df['Smoothed RTT, ms']
+
+    print("Instant RTT")
+    print(round(instant.mean(), 2))
+    print(round(instant.std(), 2))
+    print(round(instant.min(), 2))
+    print(round(instant.max(), 2))
+    print("")
+
+    print("Smoothed RTT")
+    print(round(smoothed.mean(), 2))
+    print(round(smoothed.std(), 2))
+    print(round(smoothed.min(), 2))
+    print(round(smoothed.max(), 2))
+    print("")
+
+
 @click.command()
 @click.argument(
     'filepath',
@@ -257,20 +321,25 @@ def main(filepath, local_sys, remote_sys):
 
     tracer = DriftTracer(df_driftlog, local_clock, remote_clock)
     tracer.obtain_drift_samples()
+    drift_samples = tracer.df
     print('Drift Samples')
-    print(tracer.df)
+    print(drift_samples)
 
+    print_drift_samples_statistics(drift_samples, 'usDriftSample_v1_4_2')
+    print_drift_samples_statistics(drift_samples, 'usDriftSample_AdjustedForRTT')
+    print_rtt_statistics(df_driftlog)
+    
     df_srt_model = tracer.replicate_srt_model()
     print('SRT Model')
     print(df_srt_model)
 
-    fig = create_fig_drift_samples(tracer.df)
-    fig.show()
+    fig_1 = create_fig_drift_samples(drift_samples)
+    fig_1.show()
 
     fig_2 = create_fig_rtt(df_driftlog)
     fig_2.show()
 
-    fig_3 = create_fig_srt_model(tracer.df, df_srt_model)
+    fig_3 = create_fig_srt_model(drift_samples, df_srt_model)
     fig_3.show()
 
 
