@@ -44,9 +44,6 @@ class DriftTracer:
 
         self.df = df[[elapsed_name, timestamp_name, rtt_name]]
 
-        print('Check')
-        print(self.df)
-
         self.df = self.df.rename(columns={
             elapsed_name : 'usElapsed',
             timestamp_name : 'usAckAckTimestamp',
@@ -57,7 +54,9 @@ class DriftTracer:
         print(f'Local Clock: {local_clock.value}, Remote Clock: {remote_clock.value}')
         print(f'TSBPD Time Base: {self.tsbpd_time_base}')
         print(f'RTT Base (RTT0): {self.rtt_base}')
-        print(f'Dataframe: \n {self.df}')
+        print("")
+        print(f'Dataframe \n {self.df}')
+        print("")
 
 
     def get_time_base(self, timestamp_us):
@@ -98,35 +97,16 @@ class DriftTracer:
         df = pd.DataFrame(columns = ['sElapsed', 'usDrift'])
         n = int(self.df.shape[0] / 1000)
 
-        # print(self.df.shape)
-        # print(f'n: {n}')
-
         previous_drift = 0
-        # previous_overdrift = 0
 
         for i in range(0, (n + 1)):
             slice = self.df.iloc[1000 * i:1000 * (i + 1), :]
             drift = slice['usDriftSample_AdjustedForRTT'].mean()
 
-            # if (i > 318):
-            #     print(slice[['sElapsed','usDriftSample_AdjustedForRTT']])
-            #     print(f'drift: {drift}')
-            #     print(slice['sElapsed'].iloc[0])
-            #     print(slice['sElapsed'].iloc[-1])
-
-            # if (abs(drift) > MAX_DRIFT):
-            #     overdrift = - MAX_DRIFT if drift < 0 else MAX_DRIFT
-            #     drift = drift - overdrift
-            #     # tsbpd
-
             df = df.append({'sElapsed': slice['sElapsed'].iloc[0], 'usDrift': previous_drift}, ignore_index=True)
             df = df.append({'sElapsed': slice['sElapsed'].iloc[-1], 'usDrift': previous_drift}, ignore_index=True)
 
             previous_drift = drift
-            # previous_overdrift = overdrift
-            # tsbpd
-
-        # print(f'last i = {i}')
 
         return df
 
@@ -257,6 +237,7 @@ def print_drift_samples_statistics(df: pd.DataFrame, colname: str):
     print(f'Average Drift Rate, ms/s:   {drift_rate}')
     print("")
 
+    # For copying and pasting into spreadsheet
     print(mean)
     print(std)
     print(min)
@@ -277,6 +258,7 @@ def print_rtt_statistics(df: pd.DataFrame):
     instant = df['Instant RTT, ms']
     smoothed = df['Smoothed RTT, ms']
 
+    # For copying and pasting into spreadsheet
     print("Instant RTT")
     print(round(instant.mean(), 2))
     print(round(instant.std(), 2))
@@ -318,12 +300,14 @@ def main(filepath, local_sys, remote_sys):
     df_driftlog  = pd.read_csv(filepath)
     print('Data from Log')
     print(df_driftlog)
+    print("")
 
     tracer = DriftTracer(df_driftlog, local_clock, remote_clock)
     tracer.obtain_drift_samples()
     drift_samples = tracer.df
     print('Drift Samples')
     print(drift_samples)
+    print("")
 
     print_drift_samples_statistics(drift_samples, 'usDriftSample_v1_4_2')
     print_drift_samples_statistics(drift_samples, 'usDriftSample_AdjustedForRTT')
@@ -332,6 +316,7 @@ def main(filepath, local_sys, remote_sys):
     df_srt_model = tracer.replicate_srt_model()
     print('SRT Model')
     print(df_srt_model)
+    print("")
 
     fig_1 = create_fig_drift_samples(drift_samples)
     fig_1.show()
